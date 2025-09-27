@@ -322,6 +322,76 @@
             transform: scale(1.1);
         }
         
+        .progress-container {
+            width: 100%;
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 20px;
+            background: linear-gradient(to right, #6a11cb, #2575fc);
+            width: 0%;
+            transition: width 0.5s ease;
+            border-radius: 10px;
+        }
+        
+        .progress-text {
+            margin-top: 5px;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .game-complete {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            color: white;
+            text-align: center;
+            padding: 30px;
+            border-radius: 20px;
+            display: none;
+        }
+        
+        .game-complete h2 {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            color: #ffcc00;
+        }
+        
+        .game-complete p {
+            font-size: 1.5rem;
+            margin-bottom: 30px;
+        }
+        
+        .restart-btn {
+            padding: 15px 30px;
+            background: linear-gradient(to right, #00b09b, #96c93d);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .restart-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        }
+        
         @keyframes pulse {
             0% { transform: scale(1); }
             50% { transform: scale(1.2); }
@@ -379,6 +449,14 @@
             .control-btn {
                 width: 80%;
             }
+            
+            .game-complete h2 {
+                font-size: 2.5rem;
+            }
+            
+            .game-complete p {
+                font-size: 1.2rem;
+            }
         }
         
         @media (max-width: 480px) {
@@ -396,6 +474,14 @@
             .hangman-container {
                 width: 200px;
                 height: 200px;
+            }
+            
+            .game-complete h2 {
+                font-size: 2rem;
+            }
+            
+            .game-complete p {
+                font-size: 1rem;
             }
         }
     </style>
@@ -421,6 +507,11 @@
                 <span>Lần Sai</span>
                 <div class="info-value" id="wrong-attempts">0/6</div>
             </div>
+        </div>
+        
+        <div class="progress-container">
+            <div class="progress-bar" id="progress-bar"></div>
+            <div class="progress-text" id="progress-text">Từ 1/5</div>
         </div>
         
         <div class="hint-section">
@@ -465,6 +556,13 @@
         <div class="message" id="message">
             <!-- Thông báo kết quả -->
         </div>
+        
+        <div class="game-complete" id="game-complete">
+            <h2>Chúc mừng!</h2>
+            <p>Bạn đã hoàn thành tất cả 5 từ vựng</p>
+            <p>Điểm số cuối cùng: <span id="final-score">0</span></p>
+            <button class="restart-btn" id="restart-btn">Chơi lại từ đầu</button>
+        </div>
     </div>
 
     <script>
@@ -487,6 +585,8 @@
         let maxWrongAttempts = 6;
         let hintUsed = false;
         let soundEnabled = true;
+        let currentWordIndex = 0; // Vị trí từ hiện tại trong danh sách
+        let wordsCompleted = 0; // Số từ đã hoàn thành
         
         // Các phần tử DOM
         const wordDisplayElement = document.getElementById("word-display");
@@ -501,6 +601,11 @@
         const resetButton = document.getElementById("reset-button");
         const hangmanParts = document.querySelectorAll('.hangman-part');
         const soundControl = document.getElementById("sound-control");
+        const progressBar = document.getElementById("progress-bar");
+        const progressText = document.getElementById("progress-text");
+        const gameComplete = document.getElementById("game-complete");
+        const finalScoreElement = document.getElementById("final-score");
+        const restartButton = document.getElementById("restart-btn");
         
         // Tạo âm thanh bằng Web Audio API
         function createSound(frequency, duration, type = 'sine') {
@@ -535,13 +640,19 @@
         const winSound = createSound(1046.5, 0.8, 'square'); // Âm C6
         const loseSound = createSound(110, 1.0, 'triangle'); // Âm rất thấp
         const clickSound = createSound(659.25, 0.1, 'sine'); // Âm E5
+        const completeSound = createSound(1318.51, 1.5, 'sine'); // Âm E6
         
         // Khởi tạo game
         function initGame() {
-            // Chọn từ ngẫu nhiên
-            const randomIndex = Math.floor(Math.random() * wordList.length);
-            currentWord = wordList[randomIndex].word;
-            currentHint = wordList[randomIndex].hint;
+            // Kiểm tra nếu đã hoàn thành tất cả từ
+            if (wordsCompleted >= wordList.length) {
+                showGameComplete();
+                return;
+            }
+            
+            // Chọn từ tiếp theo trong danh sách
+            currentWord = wordList[currentWordIndex].word;
+            currentHint = wordList[currentWordIndex].hint;
             
             // Reset trạng thái
             guessedLetters = [];
@@ -569,13 +680,16 @@
             
             // Kích hoạt nút gợi ý
             hintButton.disabled = false;
+            
+            // Cập nhật thanh tiến trình
+            updateProgress();
         }
         
         // Hiển thị từ với các chữ cái đã đoán
         function displayWord() {
             const wordArray = currentWord.split("");
             const displayArray = wordArray.map(letter => 
-                guessedLetters.includes(letter) ? letter : "_"
+                guessedLetters.includes(letter) || letter === " " ? letter : "_"
             );
             wordDisplayElement.textContent = displayArray.join(" ");
             
@@ -642,13 +756,16 @@
         // Kiểm tra xem người chơi đã thắng chưa
         function checkWin() {
             const wordArray = currentWord.split("");
-            return wordArray.every(letter => guessedLetters.includes(letter));
+            return wordArray.every(letter => 
+                guessedLetters.includes(letter) || letter === " "
+            );
         }
         
         // Xử lý khi thắng
         function handleWin() {
             winSound();
             score += 10 * level;
+            wordsCompleted++;
             messageElement.textContent = `Chúc mừng! Bạn đã đoán đúng từ "${currentWord}".`;
             messageElement.className = "message success";
             
@@ -666,6 +783,12 @@
             
             // Cập nhật UI
             updateUI();
+            
+            // Chuyển sang từ tiếp theo sau 2 giây
+            setTimeout(() => {
+                currentWordIndex = (currentWordIndex + 1) % wordList.length;
+                initGame();
+            }, 2000);
         }
         
         // Xử lý khi thua
@@ -679,6 +802,12 @@
             
             // Vô hiệu hóa tất cả nút chữ cái
             disableAllLetterButtons();
+            
+            // Chuyển sang từ tiếp theo sau 2 giây
+            setTimeout(() => {
+                currentWordIndex = (currentWordIndex + 1) % wordList.length;
+                initGame();
+            }, 2000);
         }
         
         // Vô hiệu hóa nút chữ cái đã chọn
@@ -750,7 +879,7 @@
             
             // Tìm một chữ cái chưa được đoán trong từ
             const unguessedLetters = currentWord.split("").filter(letter => 
-                !guessedLetters.includes(letter)
+                !guessedLetters.includes(letter) && letter !== " "
             );
             
             if (unguessedLetters.length > 0) {
@@ -765,8 +894,28 @@
         function skipWord() {
             clickSound();
             if (confirm("Bạn có chắc chắn tiếp tục?")) {
+                currentWordIndex = (currentWordIndex + 1) % wordList.length;
                 initGame();
             }
+        }
+        
+        // Cập nhật thanh tiến trình
+        function updateProgress() {
+            const progress = (wordsCompleted / wordList.length) * 100;
+            progressBar.style.width = `${progress}%`;
+            progressText.textContent = `Từ ${wordsCompleted + 1}/${wordList.length}`;
+        }
+        
+        // Hiển thị màn hình kết thúc game
+        function showGameComplete() {
+            completeSound();
+            finalScoreElement.textContent = score;
+            gameComplete.style.display = 'flex';
+            
+            // Tạo hiệu ứng confetti lớn
+            createConfetti();
+            setTimeout(createConfetti, 300);
+            setTimeout(createConfetti, 600);
         }
         
         // Tạo hiệu ứng confetti
@@ -808,15 +957,21 @@
             }
         }
         
+        // Reset game hoàn toàn
+        function resetGame() {
+            score = 0;
+            level = 1;
+            currentWordIndex = 0;
+            wordsCompleted = 0;
+            gameComplete.style.display = 'none';
+            initGame();
+        }
+        
         // Sự kiện khi nhấn nút
         hintButton.addEventListener("click", useHint);
         skipButton.addEventListener("click", skipWord);
-        resetButton.addEventListener("click", () => {
-            clickSound();
-            score = 0;
-            level = 1;
-            initGame();
-        });
+        resetButton.addEventListener("click", resetGame);
+        restartButton.addEventListener("click", resetGame);
         
         soundControl.addEventListener("click", toggleSound);
         
