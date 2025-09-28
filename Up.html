@@ -500,10 +500,6 @@
                 <div class="info-value" id="score">0</div>
             </div>
             <div class="info-item">
-                <span>Level</span>
-                <div class="info-value" id="level">1</div>
-            </div>
-            <div class="info-item">
                 <span>Lần Sai</span>
                 <div class="info-value" id="wrong-attempts">0/6</div>
             </div>
@@ -581,7 +577,6 @@
         let guessedLetters = [];
         let wrongAttempts = 0;
         let score = 0;
-        let level = 1;
         let maxWrongAttempts = 6;
         let hintUsed = false;
         let soundEnabled = true;
@@ -593,7 +588,6 @@
         const hintElement = document.getElementById("hint");
         const alphabetContainer = document.getElementById("alphabet-container");
         const scoreElement = document.getElementById("score");
-        const levelElement = document.getElementById("level");
         const wrongAttemptsElement = document.getElementById("wrong-attempts");
         const messageElement = document.getElementById("message");
         const hintButton = document.getElementById("hint-button");
@@ -764,19 +758,13 @@
         // Xử lý khi thắng
         function handleWin() {
             winSound();
-            score += 10 * level;
+            score += 10;
             wordsCompleted++;
             messageElement.textContent = `Chúc mừng! Bạn đã đoán đúng từ "${currentWord}".`;
             messageElement.className = "message success";
             
             // Hiệu ứng confetti
             createConfetti();
-            
-            // Tăng cấp độ sau mỗi 3 từ đúng
-            if (score % 30 === 0) {
-                level++;
-                messageElement.textContent += ` Bạn đã lên cấp ${level}!`;
-            }
             
             // Vô hiệu hóa tất cả nút chữ cái
             disableAllLetterButtons();
@@ -846,7 +834,6 @@
         // Cập nhật giao diện
         function updateUI() {
             scoreElement.textContent = score;
-            levelElement.textContent = level;
             wrongAttemptsElement.textContent = `${wrongAttempts}/${maxWrongAttempts}`;
         }
         
@@ -960,7 +947,6 @@
         // Reset game hoàn toàn
         function resetGame() {
             score = 0;
-            level = 1;
             currentWordIndex = 0;
             wordsCompleted = 0;
             gameComplete.style.display = 'none';
